@@ -52,6 +52,10 @@ st.markdown(f"""
         background-color: {bg_color} !important;
     }}
 
+    [data-testid="stBottomBlockContainer"] {{
+        padding: 0.5rem 1rem 1rem 1rem !important;
+    }}
+
     h1, h2, h3, h4, h5, h6, p, span, label, .stMarkdown {{
         color: {text_color} !important;
     }}
@@ -74,6 +78,10 @@ st.markdown(f"""
         background-color: {bubble_bg} !important;
         color: {input_text} !important;
     }}
+    [data-testid="stChatInput"] textarea::placeholder {{
+        color: {text_color} !important;
+        opacity: 0.5;
+    }}
 
     section[data-testid="stSidebar"] {{
         background-color: {sidebar_bg} !important;
@@ -81,6 +89,28 @@ st.markdown(f"""
     }}
     section[data-testid="stSidebar"] * {{
         color: {text_color} !important;
+    }}
+
+    [data-testid="stSelectbox"] div[data-baseweb="select"] > div {{
+        background-color: {bubble_bg} !important;
+        color: {text_color} !important;
+        border-color: {border_color} !important;
+    }}
+    [data-testid="stSelectbox"] div[data-baseweb="select"] * {{
+        color: {text_color} !important;
+    }}
+    div[data-baseweb="popover"] {{
+        background-color: {bubble_bg} !important;
+    }}
+    ul[role="listbox"] {{
+        background-color: {bubble_bg} !important;
+    }}
+    ul[role="listbox"] li {{
+        background-color: {bubble_bg} !important;
+        color: {text_color} !important;
+    }}
+    ul[role="listbox"] li:hover {{
+        background-color: {border_color} !important;
     }}
 
     button {{ border-radius: 20px !important; }}
