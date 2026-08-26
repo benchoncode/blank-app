@@ -8,16 +8,20 @@ if "dark_mode" not in st.session_state:
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-# Fetch currently available models directly from Groq
 @st.cache_data(ttl=3600)
 def get_available_models():
     try:
         models = client.models.list()
-        # Only keep chat-capable models, skip whisper/tts/etc.
-        chat_models = [m.id for m in models.data if "whisper" not in m.id and "tts" not in m.id and "guard" not in m.id]
+        exclude_keywords = ["whisper", "tts", "guard", "allam", "vision"]
+        chat_models = [
+            m.id for m in models.data
+            if not any(kw in m.id.lower() for kw in exclude_keywords)
+        ]
         return sorted(chat_models)
     except Exception:
         return ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
+
+LANGUAGES = ["English", "Spanish", "French", "German", "Japanese", "Arabic", "Portuguese", "Italian"]
 
 with st.sidebar:
     st.markdown("### Settings")
@@ -30,6 +34,9 @@ with st.sidebar:
         format_func=lambda x: "Select a model..." if x is None else x,
         index=0
     )
+
+    language_choice = st.selectbox("Language", options=LANGUAGES, index=0)
+
     if st.button("🗑️ Clear Chat"):
         st.session_state.messages = []
         st.rerun()
@@ -153,9 +160,14 @@ else:
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
+                    system_prompt = {
+                        "role": "system",
+                        "content": f"Always respond only in {language_choice}, regardless of what language the user writes in, unless they explicitly ask you to switch languages."
+                    }
+                    api_messages = [system_prompt] + st.session_state.messages
                     response = client.chat.completions.create(
                         model=model_choice,
-                        messages=st.session_state.messages
+                        messages=api_messages
                     )
                     reply = response.choices[0].message.content
                 except Exception as e:
