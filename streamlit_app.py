@@ -48,7 +48,7 @@ st.markdown(f"""
         background-color: {bg_color} !important;
     }}
 
-    [data-testid="stBottom"], [data-testid="stBottomBlockContainer"] {{
+    [data-testid="stBottom"], [data-testid="stBottomBlockContainer"], [data-testid="stBottom"] * {{
         background-color: {bg_color} !important;
     }}
 
@@ -84,7 +84,8 @@ st.markdown(f"""
     }}
 
     button {{ border-radius: 20px !important; }}
-    button, button * {{
+    section[data-testid="stSidebar"] button,
+    section[data-testid="stSidebar"] button * {{
         color: #1d1d1f !important;
     }}
 </style>
