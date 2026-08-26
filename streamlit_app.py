@@ -20,10 +20,21 @@ if "language_choice" not in st.session_state:
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 # ---------------------------------------------------------------------------
-# Model list (allowlist-driven — safer than an ever-growing exclude list)
+# Model list
+# Bug last time: prefixes like "llama-" don't match Groq's real IDs, which
+# are things like "llama3-70b-8192", "llama-3.1-8b-instant", "gemma2-9b-it",
+# "mixtral-8x7b-32768" — inconsistent dash placement. Match on the bare
+# family name instead, and always fall back to a known-good static list so
+# the dropdown is never empty even if the API call or filter goes wrong.
 # ---------------------------------------------------------------------------
-ALLOWED_PREFIXES = ("llama-", "mixtral-", "gemma-", "deepseek-", "qwen-")
-ALLOWED_KEYWORDS_EXCLUDE = ("whisper", "tts", "guard", "vision", "audio")
+ALLOWED_FAMILIES = ("llama", "mixtral", "gemma", "deepseek", "qwen")
+EXCLUDE_KEYWORDS = ("whisper", "tts", "guard", "vision", "audio")
+FALLBACK_MODELS = [
+    "llama-3.1-8b-instant",
+    "llama-3.3-70b-versatile",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it",
+]
 
 @st.cache_data(ttl=3600)
 def get_available_models():
@@ -31,17 +42,18 @@ def get_available_models():
         models = client.models.list()
         chat_models = [
             m.id for m in models.data
-            if m.id.lower().startswith(ALLOWED_PREFIXES)
-            and not any(kw in m.id.lower() for kw in ALLOWED_KEYWORDS_EXCLUDE)
+            if m.id.lower().startswith(ALLOWED_FAMILIES)
+            and not any(kw in m.id.lower() for kw in EXCLUDE_KEYWORDS)
         ]
-        return sorted(chat_models)
+        chat_models = sorted(set(chat_models))
+        return chat_models if chat_models else FALLBACK_MODELS
     except Exception:
-        return ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
+        return FALLBACK_MODELS
 
 LANGUAGES = ["English", "Spanish", "French", "German", "Japanese", "Arabic", "Portuguese", "Italian"]
 
 # ---------------------------------------------------------------------------
-# Design tokens — pick an accent, both modes derive from it
+# Design tokens
 # ---------------------------------------------------------------------------
 ACCENTS = {
     "Amber":  "#E8A33D",
@@ -53,13 +65,15 @@ ACCENTS = {
 with st.sidebar:
     st.markdown("### Chat")
     available_models = get_available_models()
+    default_index = (
+        available_models.index(st.session_state.model_choice) + 1
+        if st.session_state.model_choice in available_models else 0
+    )
     model_choice = st.selectbox(
         "Model",
         options=[None] + available_models,
         format_func=lambda x: "Select a model..." if x is None else x,
-        index=0 if st.session_state.model_choice is None else
-              ([None] + available_models).index(st.session_state.model_choice)
-              if st.session_state.model_choice in available_models else 0,
+        index=default_index,
     )
     st.session_state.model_choice = model_choice
 
@@ -71,10 +85,9 @@ with st.sidebar:
 
     st.markdown("### Design")
     st.session_state.dark_mode = st.toggle("Dark mode", value=st.session_state.dark_mode)
-    accent_choice = st.radio(
+    accent_choice = st.selectbox(
         "Accent", options=list(ACCENTS.keys()),
         index=list(ACCENTS.keys()).index(st.session_state.accent),
-        horizontal=True,
     )
     st.session_state.accent = accent_choice
 
@@ -90,99 +103,58 @@ if st.session_state.dark_mode:
     surface = "#1F1F24"
     surface_soft = "#26262C"
     text = "#F2F1EE"
-    text_muted = "#9A9AA2"
-    border = "#2E2E35"
+    border = "#34343B"
 else:
     bg = "#F7F7F5"
     surface = "#FFFFFF"
-    surface_soft = "#EFEEEA"
+    surface_soft = "#EDECE8"
     text = "#1A1A1D"
-    text_muted = "#7A7A80"
-    border = "#E4E3DE"
+    border = "#D8D7D2"
 
 # ---------------------------------------------------------------------------
-# Styling — seamless surfaces, pill input, borderless bubbles
+# Native theming — this is what actually keeps toggles, radios, selects,
+# focus rings, etc. consistent, instead of chasing every widget's internal
+# markup by hand with CSS (which breaks across Streamlit versions and is
+# why the model box and switches looked disconnected from the accent last
+# time). Streamlit reads these at the start of each rerun.
+# ---------------------------------------------------------------------------
+st.set_option("theme.base", "dark" if st.session_state.dark_mode else "light")
+st.set_option("theme.primaryColor", accent)
+st.set_option("theme.backgroundColor", bg)
+st.set_option("theme.secondaryBackgroundColor", surface_soft)
+st.set_option("theme.textColor", text)
+
+# ---------------------------------------------------------------------------
+# CSS — only for the custom chat surface. Everything else (selects, toggle,
+# radio, buttons, focus states) now comes from theme.* above, so text and
+# widget color stay a single consistent value in each mode.
 # ---------------------------------------------------------------------------
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
 
-:root, html, body {{
-    --background-color: {bg} !important;
-    --secondary-background-color: {surface} !important;
-    --text-color: {text} !important;
-    --primary-color: {accent} !important;
-}}
-
 * {{ font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important; }}
-
-html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"],
-[data-testid="stHeader"], [data-testid="stBottom"], [data-testid="stBottomBlockContainer"] {{
-    background-color: {bg} !important;
-    color: {text} !important;
-}}
 
 #MainMenu, footer {{ visibility: hidden; }}
 
-/* Header / title */
 h1 {{
     font-family: 'Space Grotesk', sans-serif !important;
     font-weight: 700 !important;
     letter-spacing: -0.02em;
 }}
 
-/* Sidebar */
-section[data-testid="stSidebar"] {{
-    background-color: {bg} !important;
-    border-right: 1px solid {border};
-}}
 section[data-testid="stSidebar"] h3 {{
     font-family: 'Space Grotesk', sans-serif !important;
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: {text_muted} !important;
+    opacity: 0.65;
     margin-top: 1.2rem;
 }}
 
-/* Selects — seamless, no boxy border */
-[data-testid="stSelectbox"] div[data-baseweb="select"] > div {{
-    background-color: {surface_soft} !important;
-    border: none !important;
-    border-radius: 12px !important;
-    box-shadow: none !important;
-}}
-div[data-baseweb="popover"], ul[role="listbox"] {{
-    background-color: {surface} !important;
-    border-radius: 12px !important;
-    border: 1px solid {border} !important;
-}}
-ul[role="listbox"] li:hover {{ background-color: {surface_soft} !important; }}
+[data-testid="stSidebar"] button {{ border-radius: 999px !important; }}
 
-/* Radio pills for accent picker */
-[data-testid="stSidebar"] div[role="radiogroup"] {{
-    gap: 6px;
-}}
-[data-testid="stSidebar"] div[role="radiogroup"] label {{
-    background-color: {surface_soft};
-    border-radius: 999px;
-    padding: 2px 10px;
-    border: 1px solid transparent;
-}}
-
-/* Buttons */
-[data-testid="stSidebar"] button {{
-    border-radius: 999px !important;
-    border: 1px solid {border} !important;
-    background-color: {surface} !important;
-    color: {text} !important;
-}}
-[data-testid="stSidebar"] button:hover {{
-    border-color: {accent} !important;
-    color: {accent} !important;
-}}
-
-/* Chat bubbles — no card/box look, just soft tinted surfaces */
+/* Chat bubbles — borderless, tinted by role instead of boxed */
 [data-testid="stChatMessage"] {{
     background: transparent !important;
     box-shadow: none !important;
@@ -194,47 +166,24 @@ ul[role="listbox"] li:hover {{ background-color: {surface_soft} !important; }}
     padding: 10px 16px;
     max-width: 78%;
     line-height: 1.5;
-}}
-[data-testid="stChatMessage"]:has(img[alt="user avatar"]) [data-testid="stChatMessageContent"],
-[data-testid="stChatMessage"][data-testid*="user"] [data-testid="stChatMessageContent"] {{
-    background-color: {accent}22;
-    margin-left: auto;
-    border-radius: 18px 18px 4px 18px;
-}}
-[data-testid="stChatMessage"] [data-testid="stChatMessageContent"] {{
     background-color: {surface_soft};
-    border-radius: 18px 18px 18px 4px;
-}}
-[data-testid="stChatMessageAvatarUser"], [data-testid="stChatMessageAvatarAssistant"] {{
-    background-color: {surface_soft} !important;
 }}
 
 /* Chat input — seamless pill, glows on focus instead of a hard border */
-[data-testid="stChatInput"] {{
-    background-color: {bg} !important;
-    padding-bottom: 0.75rem;
-}}
 [data-testid="stChatInput"] textarea {{
     border-radius: 22px !important;
-    border: none !important;
     background-color: {surface_soft} !important;
-    color: {text} !important;
     box-shadow: inset 0 0 0 1px {border};
     transition: box-shadow 0.15s ease;
 }}
 [data-testid="stChatInput"] textarea:focus {{
     box-shadow: inset 0 0 0 1.5px {accent}, 0 0 0 4px {accent}22 !important;
 }}
-[data-testid="stChatInput"] textarea::placeholder {{
-    color: {text_muted} !important;
-    opacity: 1;
-}}
 [data-testid="stChatInput"] button {{
     background-color: {accent} !important;
     border-radius: 999px !important;
 }}
 
-/* Scrollbar */
 ::-webkit-scrollbar {{ width: 8px; }}
 ::-webkit-scrollbar-thumb {{ background: {border}; border-radius: 8px; }}
 </style>
@@ -257,7 +206,7 @@ else:
 
         with st.chat_message("assistant"):
             placeholder = st.empty()
-            placeholder.markdown(f"<span style='color:{text_muted}'>●●● thinking</span>", unsafe_allow_html=True)
+            placeholder.markdown("●●● thinking")
             try:
                 system_prompt = {
                     "role": "system",
