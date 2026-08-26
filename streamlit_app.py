@@ -7,8 +7,8 @@ st.set_page_config(page_title="BENAITEST", layout="centered")
 # ---------------------------------------------------------------------------
 # State
 # ---------------------------------------------------------------------------
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False
+if "mode_choice" not in st.session_state:
+    st.session_state.mode_choice = "Light"
 if "accent" not in st.session_state:
     st.session_state.accent = "Amber"
 if "messages" not in st.session_state:
@@ -71,36 +71,29 @@ MODES = ["Light", "Dark"]
 with st.sidebar:
     st.markdown("### Chat")
     available_models = get_available_models()
-    default_index = (
-        available_models.index(st.session_state.model_choice) + 1
-        if st.session_state.model_choice in available_models else 0
-    )
+    # Options list can shift between reruns (cache expiry, API change) —
+    # if the saved model_choice has fallen out of it, reset before the
+    # widget reads session_state, so a stale key value can't raise.
+    if st.session_state.model_choice not in [None] + available_models:
+        st.session_state.model_choice = None
     model_choice = st.selectbox(
         "Model",
         options=[None] + available_models,
         format_func=lambda x: "Select a model..." if x is None else x,
-        index=default_index,
+        key="model_choice",
     )
-    st.session_state.model_choice = model_choice
 
     language_choice = st.selectbox(
-        "Language", options=LANGUAGES,
-        index=LANGUAGES.index(st.session_state.language_choice),
+        "Language", options=LANGUAGES, key="language_choice",
     )
-    st.session_state.language_choice = language_choice
 
     st.markdown("### Design")
     mode_choice = st.selectbox(
-        "Mode", options=MODES,
-        index=1 if st.session_state.dark_mode else 0,
+        "Mode", options=MODES, key="mode_choice",
     )
-    st.session_state.dark_mode = (mode_choice == "Dark")
-
     accent_choice = st.selectbox(
-        "Accent", options=list(ACCENTS.keys()),
-        index=list(ACCENTS.keys()).index(st.session_state.accent),
+        "Accent", options=list(ACCENTS.keys()), key="accent",
     )
-    st.session_state.accent = accent_choice
 
     st.markdown("")
     if st.button("Clear chat"):
@@ -109,7 +102,7 @@ with st.sidebar:
 
 accent = ACCENTS[st.session_state.accent]
 
-if st.session_state.dark_mode:
+if st.session_state.mode_choice == "Dark":
     bg = "#16161A"
     surface = "#1F1F24"
     surface_soft = "#26262C"
