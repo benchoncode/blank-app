@@ -12,7 +12,10 @@ client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 def get_available_models():
     try:
         models = client.models.list()
-        exclude_keywords = ["whisper", "tts", "guard", "allam", "vision"]
+        exclude_keywords = [
+            "whisper", "tts", "guard", "allam", "vision",
+            "arabic", "saudi", "translate", "audio"
+        ]
         chat_models = [
             m.id for m in models.data
             if not any(kw in m.id.lower() for kw in exclude_keywords)
