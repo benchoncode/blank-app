@@ -39,9 +39,20 @@ st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-    html, body, [class*="css"], .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {{
+    :root, html, body {{
+        --background-color: {bg_color} !important;
+        --secondary-background-color: {bubble_bg} !important;
+        --text-color: {text_color} !important;
+        --primary-color: {text_color} !important;
+    }}
+
+    * {{
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    }}
+
+    html, body, [class*="css"], .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {{
         background-color: {bg_color} !important;
+        color: {text_color} !important;
     }}
 
     [data-testid="stHeader"] {{
@@ -56,7 +67,7 @@ st.markdown(f"""
         padding: 0.5rem 1rem 1rem 1rem !important;
     }}
 
-    h1, h2, h3, h4, h5, h6, p, span, label, .stMarkdown {{
+    h1, h2, h3, h4, h5, h6, p, span, label, div, li, a {{
         color: {text_color} !important;
     }}
 
@@ -68,10 +79,10 @@ st.markdown(f"""
         box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         border: none;
     }}
-    [data-testid="stChatMessage"] p {{
-        color: {text_color} !important;
-    }}
 
+    [data-testid="stChatInput"] {{
+        background-color: {bg_color} !important;
+    }}
     [data-testid="stChatInput"] textarea {{
         border-radius: 20px !important;
         border: 1px solid {border_color} !important;
@@ -87,37 +98,24 @@ st.markdown(f"""
         background-color: {sidebar_bg} !important;
         border-right: 1px solid {border_color};
     }}
-    section[data-testid="stSidebar"] * {{
-        color: {text_color} !important;
-    }}
 
     [data-testid="stSelectbox"] div[data-baseweb="select"] > div {{
         background-color: {bubble_bg} !important;
-        color: {text_color} !important;
         border-color: {border_color} !important;
     }}
-    [data-testid="stSelectbox"] div[data-baseweb="select"] * {{
-        color: {text_color} !important;
-    }}
-    div[data-baseweb="popover"] {{
+    div[data-baseweb="popover"], ul[role="listbox"] {{
         background-color: {bubble_bg} !important;
-    }}
-    ul[role="listbox"] {{
-        background-color: {bubble_bg} !important;
-    }}
-    ul[role="listbox"] li {{
-        background-color: {bubble_bg} !important;
-        color: {text_color} !important;
     }}
     ul[role="listbox"] li:hover {{
         background-color: {border_color} !important;
     }}
 
     button {{ border-radius: 20px !important; }}
-    section[data-testid="stSidebar"] button,
-    section[data-testid="stSidebar"] button * {{
+    section[data-testid="stSidebar"] button, section[data-testid="stSidebar"] button * {{
         color: #1d1d1f !important;
     }}
+
+    #MainMenu, footer {{ visibility: hidden; }}
 </style>
 """, unsafe_allow_html=True)
 
