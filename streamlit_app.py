@@ -48,6 +48,10 @@ st.markdown(f"""
         background-color: {bg_color} !important;
     }}
 
+    [data-testid="stBottom"], [data-testid="stBottomBlockContainer"] {{
+        background-color: {bg_color} !important;
+    }}
+
     h1, h2, h3, h4, h5, h6, p, span, label, .stMarkdown {{
         color: {text_color} !important;
     }}
