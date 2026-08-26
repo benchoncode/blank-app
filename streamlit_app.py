@@ -1,5 +1,5 @@
 import streamlit as st
-import ollama
+from groq import Groq
 
 st.set_page_config(page_title="Llama Chat", page_icon="💬", layout="centered")
 
@@ -32,11 +32,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+
 with st.sidebar:
     st.markdown("### Settings")
     model_choice = st.selectbox(
         "Model",
-        options=[None, "llama3.1", "codellama", "qwen2.5-coder"],
+        options=[None, "llama-3.1-8b-instant", "llama-3.3-70b-versatile"],
         format_func=lambda x: "Select a model..." if x is None else x,
         index=0
     )
@@ -63,10 +65,10 @@ else:
         st.session_state.messages.append({"role": "user", "content": user_input})
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                response = ollama.chat(
+                response = client.chat.completions.create(
                     model=model_choice,
                     messages=st.session_state.messages
                 )
-                reply = response['message']['content']
+                reply = response.choices[0].message.content
                 st.write(reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
