@@ -125,13 +125,28 @@ else:
 # ---------------------------------------------------------------------------
 # CSS
 # ---------------------------------------------------------------------------
+st.markdown("""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chewy&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+""", unsafe_allow_html=True)
+
 st.markdown(f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Chewy&family=Inter:wght@400;500;600&display=swap');
-
 html, body, .stApp {{
     background-color: {bg} !important;
     color: {text} !important;
+}}
+
+/* Streamlit's own layout wrappers (the padding/column divs around the
+   sticky bottom input, in particular) can carry a dark background from
+   Streamlit's built-in stylesheet that our earlier, narrower selector
+   list didn't reach — which is what left those black boxes flanking the
+   chat input. Blanking every div/section back to transparent first, then
+   repainting only the specific surfaces we want colored below, removes
+   the guesswork about which exact wrapper is responsible. */
+[data-testid="stApp"] div, [data-testid="stApp"] section {{
+    background-color: transparent !important;
 }}
 [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stHeader"],
 [data-testid="stBottom"], [data-testid="stBottomBlockContainer"], section[data-testid="stSidebar"] {{
@@ -153,7 +168,7 @@ span[data-testid="stIconMaterial"] {{ color: {text} !important; }}
 
 #MainMenu, footer {{ visibility: hidden; }}
 
-h1 {{
+h1, [data-testid="stHeading"] h1, [data-testid="stMarkdownContainer"] h1 {{
     font-family: 'Chewy', cursive !important;
     font-weight: 400 !important;
     color: {accent} !important;
