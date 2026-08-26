@@ -80,9 +80,9 @@ st.markdown(f"""
     }}
 
     button {{ border-radius: 20px !important; }}
-     button, button * {
+    button, button * {{
         color: #1d1d1f !important;
-    }
+    }}
 </style>
 """, unsafe_allow_html=True)
 
