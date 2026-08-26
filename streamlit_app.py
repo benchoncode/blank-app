@@ -6,13 +6,27 @@ st.set_page_config(page_title="Llama Chat", page_icon="💬", layout="centered")
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+
+# Fetch currently available models directly from Groq
+@st.cache_data(ttl=3600)
+def get_available_models():
+    try:
+        models = client.models.list()
+        # Only keep chat-capable models, skip whisper/tts/etc.
+        chat_models = [m.id for m in models.data if "whisper" not in m.id and "tts" not in m.id and "guard" not in m.id]
+        return sorted(chat_models)
+    except Exception:
+        return ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
+
 with st.sidebar:
     st.markdown("### Settings")
     st.session_state.dark_mode = st.toggle("🌙 Dark Mode", value=st.session_state.dark_mode)
 
+    available_models = get_available_models()
     model_choice = st.selectbox(
         "Model",
-        options=[None, "llama-3.1-8b-instant", "llama-3.3-70b-versatile"],
+        options=[None] + available_models,
         format_func=lambda x: "Select a model..." if x is None else x,
         index=0
     )
@@ -119,8 +133,6 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-
 st.title("💬 Llama Chat")
 
 if "messages" not in st.session_state:
@@ -140,10 +152,13 @@ else:
         st.session_state.messages.append({"role": "user", "content": user_input})
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                response = client.chat.completions.create(
-                    model=model_choice,
-                    messages=st.session_state.messages
-                )
-                reply = response.choices[0].message.content
+                try:
+                    response = client.chat.completions.create(
+                        model=model_choice,
+                        messages=st.session_state.messages
+                    )
+                    reply = response.choices[0].message.content
+                except Exception as e:
+                    reply = f"Error: {e}"
                 st.write(reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
