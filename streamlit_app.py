@@ -1,7 +1,8 @@
+import re
 import streamlit as st
 from groq import Groq
 
-st.set_page_config(page_title="Llama Chat", page_icon="🦙", layout="centered")
+st.set_page_config(page_title="BENAITEST", layout="centered")
 
 # ---------------------------------------------------------------------------
 # State
@@ -20,10 +21,7 @@ if "language_choice" not in st.session_state:
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 # ---------------------------------------------------------------------------
-# Model list — match on bare family name (Groq's real IDs are inconsistent
-# about dashes: "llama3-70b-8192", "gemma2-9b-it", "mixtral-8x7b-32768"),
-# and always fall back to a known-good static list so the dropdown is never
-# empty even if the API call or filter misbehaves.
+# Model list
 # ---------------------------------------------------------------------------
 ALLOWED_FAMILIES = ("llama", "mixtral", "gemma", "deepseek", "qwen")
 EXCLUDE_KEYWORDS = ("whisper", "tts", "guard", "vision", "audio")
@@ -46,6 +44,20 @@ def get_available_models():
         return chat_models if chat_models else FALLBACK_MODELS
     except Exception:
         return FALLBACK_MODELS
+
+
+def strip_think(text: str) -> str:
+    """Remove <think>...</think> reasoning blocks some models (e.g. Qwen3)
+    emit before their actual answer — the user only wants the answer."""
+    if "</think>" in text:
+        # Drop everything up to and including the closing tag.
+        text = text.split("</think>", 1)[1]
+    else:
+        # No closing tag found (rare/truncated) — just drop the opening tag
+        # itself rather than showing raw reasoning markup.
+        text = text.replace("<think>", "")
+    return text.strip()
+
 
 LANGUAGES = ["English", "Spanish", "French", "German", "Japanese", "Arabic", "Portuguese", "Italian"]
 ACCENTS = {
@@ -78,10 +90,6 @@ with st.sidebar:
     st.session_state.language_choice = language_choice
 
     st.markdown("### Design")
-    # Using selectboxes (not toggle/radio) on purpose: those two widgets
-    # color their checked state with an inline style Streamlit sets from
-    # its own default theme, which plain CSS can't reliably override and
-    # is what caused the stray red switch/dot last time.
     mode_choice = st.selectbox(
         "Mode", options=MODES,
         index=1 if st.session_state.dark_mode else 0,
@@ -116,17 +124,10 @@ else:
 
 # ---------------------------------------------------------------------------
 # CSS
-# Strategy: for each widget, force EVERY descendant's background to
-# transparent and text to one color, then paint background/border only on
-# the single outer wrapper we choose. That sidesteps guessing at whichever
-# nested div/class the installed Streamlit version happens to use — it
-# can't leave a stray dark or off-theme box behind because nothing keeps
-# its own background. Font-family is scoped to text elements only (not
-# `*`), so it doesn't clobber Streamlit's icon-ligature fonts.
 # ---------------------------------------------------------------------------
 st.markdown(f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chewy&family=Inter:wght@400;500;600&display=swap');
 
 html, body, .stApp {{
     background-color: {bg} !important;
@@ -136,29 +137,47 @@ html, body, .stApp {{
 [data-testid="stBottom"], [data-testid="stBottomBlockContainer"], section[data-testid="stSidebar"] {{
     background-color: {bg} !important;
 }}
-p, span, label, li, a, h1, h2, h3, h4, h5, h6,
-[data-testid="stMarkdownContainer"] {{
+
+/* Text color + font — explicitly excludes icon-glyph spans so material
+   icons (sidebar collapse arrow, select chevrons) keep rendering as icons
+   instead of showing their raw name as text. */
+p, span:not([data-testid="stIconMaterial"]), label, li, a,
+h2, h3, h4, h5, h6, [data-testid="stMarkdownContainer"] {{
     color: {text} !important;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
 }}
 button, input, textarea, select {{
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
 }}
+span[data-testid="stIconMaterial"] {{ color: {text} !important; }}
 
 #MainMenu, footer {{ visibility: hidden; }}
 
 h1 {{
-    font-family: 'Space Grotesk', sans-serif !important;
-    font-weight: 700 !important;
-    letter-spacing: -0.02em;
+    font-family: 'Chewy', cursive !important;
+    font-weight: 400 !important;
+    color: {accent} !important;
+    letter-spacing: 0.01em;
 }}
 section[data-testid="stSidebar"] h3 {{
-    font-family: 'Space Grotesk', sans-serif !important;
+    font-family: 'Inter', sans-serif !important;
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     opacity: 0.65;
     margin-top: 1.2rem;
+}}
+
+/* Sidebar collapse control — style it as a visible, labeled button
+   instead of a bare (and previously broken) icon */
+[data-testid="stSidebarCollapseButton"], [data-testid="stSidebarCollapsedControl"] {{
+    background-color: {surface_soft} !important;
+    border-radius: 10px !important;
+    box-shadow: inset 0 0 0 1px {border} !important;
+    padding: 4px 8px !important;
+}}
+[data-testid="stSidebarCollapseButton"] *, [data-testid="stSidebarCollapsedControl"] * {{
+    color: {text} !important;
 }}
 
 /* Selects — nuke inner layers, paint only the outer box */
@@ -199,7 +218,7 @@ li[role="option"]:hover, li[aria-selected="true"] {{
 }}
 [data-testid="stSidebar"] button p {{ color: inherit !important; }}
 
-/* Info / alert box — match theme instead of Streamlit's default blue */
+/* Info / alert box */
 [data-testid="stAlert"] {{
     background-color: {surface_soft} !important;
     border-radius: 14px !important;
@@ -207,21 +226,40 @@ li[role="option"]:hover, li[aria-selected="true"] {{
 }}
 [data-testid="stAlert"] * {{ color: {text} !important; }}
 
-/* Chat bubbles */
+/* Chat messages — no avatars; role is shown via alignment + tint instead.
+   Messages always alternate user, assistant in the order we append them,
+   so nth-of-type is a reliable way to tell them apart without needing an
+   avatar element to key off of. */
+[data-testid="stChatMessageAvatarUser"], [data-testid="stChatMessageAvatarAssistant"] {{
+    display: none !important;
+}}
 [data-testid="stChatMessage"] {{
     background: transparent !important;
     box-shadow: none !important;
     border: none !important;
     padding: 4px 0 !important;
+    width: 100% !important;
+    display: flex !important;
+    gap: 0 !important;
 }}
 [data-testid="stChatMessageContent"] {{
     border-radius: 18px;
     padding: 10px 16px;
     max-width: 78%;
     line-height: 1.5;
-    background-color: {surface_soft} !important;
 }}
 [data-testid="stChatMessageContent"] * {{ color: {text} !important; }}
+
+[data-testid="stChatMessage"]:nth-of-type(odd) {{ justify-content: flex-end; }}
+[data-testid="stChatMessage"]:nth-of-type(odd) [data-testid="stChatMessageContent"] {{
+    background-color: {accent}22 !important;
+    border-radius: 18px 18px 4px 18px;
+}}
+[data-testid="stChatMessage"]:nth-of-type(even) {{ justify-content: flex-start; }}
+[data-testid="stChatMessage"]:nth-of-type(even) [data-testid="stChatMessageContent"] {{
+    background-color: {surface_soft} !important;
+    border-radius: 18px 18px 18px 4px;
+}}
 
 /* Chat input — seamless pill */
 [data-testid="stChatInput"] {{ background-color: {bg} !important; }}
@@ -246,7 +284,7 @@ li[role="option"]:hover, li[aria-selected="true"] {{
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🦙 Llama Chat")
+st.title("BENAITEST")
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -263,13 +301,14 @@ else:
 
         with st.chat_message("assistant"):
             placeholder = st.empty()
-            placeholder.markdown("●●● thinking")
+            placeholder.markdown("···")
             try:
                 system_prompt = {
                     "role": "system",
                     "content": (
                         f"Always respond only in {language_choice}, regardless of what "
-                        "language the user writes in, unless they explicitly ask you to switch languages."
+                        "language the user writes in, unless they explicitly ask you to switch languages. "
+                        "Do not show your reasoning or thinking process — reply with only the final answer."
                     ),
                 }
                 api_messages = [system_prompt] + st.session_state.messages
@@ -277,7 +316,8 @@ else:
                     model=model_choice,
                     messages=api_messages,
                 )
-                reply = response.choices[0].message.content
+                raw_reply = response.choices[0].message.content
+                reply = strip_think(raw_reply)
             except Exception as e:
                 reply = f"Error: {e}"
             placeholder.write(reply)
